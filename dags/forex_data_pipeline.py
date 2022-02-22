@@ -7,6 +7,7 @@ from airflow.providers.slack.operators.slack_webhook import SlackWebhookOperator
 from airflow.sensors.filesystem import FileSensor
 from airflow.operators.python import PythonOperator
 #from airflow.operators.email import EmailOperator
+from functions.aws_s3 import create_bucket, store_rates_file
 from datetime import datetime, timedelta
 from botocore.exceptions import ClientError
 import csv
@@ -16,13 +17,10 @@ import boto3
 import logging
 import os
 
-AWS_KEY = Variable.get("aws_access_key_id")
-AWS_SECRET_KEY = Variable.get("aws_secret_access_key")
-
 default_args = {
     "owner": "airflow",
-    "email_on_failure": False,
-    "email_on_retry": False,
+    "email_on_failure": True,
+    "email_on_retry": True,
     "email": "hailson.fsj@gmail.com",
     "retries": 1,
     "retry_delay": timedelta(minutes=1)
@@ -46,27 +44,6 @@ def download_rates():
             with open('/opt/airflow/dags/files/forex_rates.json', 'a') as outfile:
                 json.dump(outdata, outfile)
                 outfile.write('\n')
-
-def create_bucket(bucket_name, region=None):
-    try:
-        s3 = boto3.resource('s3', aws_access_key_id=AWS_KEY, aws_secret_access_key=AWS_SECRET_KEY)
-
-        if region is None:
-            s3.create_bucket(Bucket=bucket_name)
-        else:
-            s3.create_bucket(Bucket=bucket_name, CreateBucketConfiguration={'LocationConstraint': region})
-    except ClientError as e:
-        logging.error(e)
-        return False
-    return True
-
-def store_rates_file(bucket, file_complete_path, file_name, object_name=None):
-    if object_name is None:
-        object_name = os.path.basename(file_name)
-    
-    s3 = boto3.resource('s3', aws_access_key_id=AWS_KEY, aws_secret_access_key=AWS_SECRET_KEY)
-
-    s3.Bucket(bucket).upload_file(file_complete_path, file_name)
 
 def _get_message() -> str:
     return "Hi from forex data pipeline"
